@@ -1,131 +1,83 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>플레이 가능한 2D 체스 게임 (효과)</title>
+    <title>2D 체스 게임 (AI 버그 수정)</title>
     <style>
-        /* 이전 CSS 스타일 유지 */
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: #d0d0d0;
-            font-family: sans-serif;
-            overflow: hidden; /* 애니메이션 중 스크롤 방지 */
-        }
-        #game-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative; /* 유령 말 위치 기준 */
-        }
-        #info {
-            margin-bottom: 15px;
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #333;
-            min-height: 1.5em;
-            background-color: rgba(255, 255, 255, 0.7);
-            padding: 5px 15px;
-            border-radius: 5px;
-        }
-        #chessboard {
-            width: 480px;
-            height: 480px;
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            grid-template-rows: repeat(8, 1fr);
-            border: 5px solid #333;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            position: relative; /* 칸 위치 기준 */
-        }
-        .square {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 40px;
-            position: relative;
-        }
+        /* CSS는 이전과 동일 */
+        body { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; background-color: #d0d0d0; font-family: sans-serif; overflow: hidden; }
+        #mode-selection { text-align: center; padding: 30px; background-color: #f0f0f0; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        #mode-selection h2 { margin-bottom: 20px; color: #333; }
+        .mode-button { padding: 12px 25px; font-size: 1.1em; margin: 0 10px; cursor: pointer; border: none; border-radius: 5px; background-color: #769656; color: white; transition: background-color 0.2s ease; }
+        .mode-button:hover { background-color: #5e7c48; }
+        #game-container { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .hidden { display: none !important; }
+        #info { margin-bottom: 15px; font-size: 1.2em; font-weight: bold; color: #333; min-height: 1.5em; background-color: rgba(255, 255, 255, 0.7); padding: 5px 15px; border-radius: 5px; }
+        #chessboard { width: 480px; height: 480px; display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border: 5px solid #333; box-shadow: 0 5px 15px rgba(0,0,0,0.3); position: relative; }
+        .square { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-size: 40px; position: relative; }
         .white-square { background-color: #eeeed2; }
         .black-square { background-color: #769656; }
-        .piece {
-            cursor: pointer;
-            user-select: none;
-            z-index: 1;
-            transition: opacity 0.1s ease-out, transform 0.2s ease; /* transform transition 추가 */
-            /* 은은한 파란색 빛 효과 추가 */
-            text-shadow: 0 0 6px rgba(100, 150, 255, 0.7); /* X-offset, Y-offset, Blur-radius, Color */
-        }
-        .selected .piece {
-            color: #31708f; /* 선택 시 색상 변경은 유지하거나 제거 */
-            font-weight: bold;
-            transform: scale(1.1); /* 선택 시 크기 변경 */
-            /* 선택 시 그림자 강화 (옵션) */
-            /* text-shadow: 0 0 10px rgba(50, 100, 200, 0.9); */
-        }
-        .selected {
-             background-color: #bde0ff !important;
-        }
-        .valid-move-marker {
-            position: absolute;
-            width: 30%;
-            height: 30%;
-            background-color: rgba(0, 255, 0, 0.4);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* 애니메이션용 유령 말 스타일 */
-        .ghost-piece {
-            position: absolute;
-            font-size: 40px; /* .square와 동일하게 */
-            pointer-events: none; /* 클릭 방해 방지 */
-            z-index: 1000; /* 다른 요소들 위에 표시 */
-            transition: transform 0.3s ease-in-out;
-            /* 유령 말에도 동일한 그림자 효과 적용 */
-            text-shadow: 0 0 6px rgba(100, 150, 255, 0.7);
-        }
-        /* 애니메이션 시작 시 원래 말 숨기기용 클래스 */
-        .moving .piece {
-            opacity: 0;
-        }
-
+        .piece { cursor: pointer; user-select: none; z-index: 1; transition: opacity 0.1s ease-out, transform 0.2s ease; text-shadow: 0 0 6px rgba(100, 150, 255, 0.7); }
+        .selected .piece { color: #31708f; font-weight: bold; transform: scale(1.1); }
+        .selected { background-color: #bde0ff !important; }
+        .valid-move-marker { position: absolute; width: 30%; height: 30%; background-color: rgba(0, 255, 0, 0.4); border-radius: 50%; pointer-events: none; z-index: 0; }
+        .ghost-piece { position: absolute; font-size: 40px; pointer-events: none; z-index: 1000; transition: transform 0.3s ease-in-out; text-shadow: 0 0 6px rgba(100, 150, 255, 0.7); }
+        .moving .piece { opacity: 0; }
     </style>
     
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 </head>
 <body>
-    <div id="game-container">
+    <div id="mode-selection">
+        <h2>게임 모드 선택</h2>
+        <button id="vs-ai-button" class="mode-button">AI와 대결</button>
+        <button id="vs-human-button" class="mode-button">사람과 대결(멀티X)</button>
+    </div>
+
+    <div id="game-container" class="hidden">
         <div id="info">게임 로딩 중...</div>
         <div id="chessboard">
             </div>
     </div>
 
     <script>
-        // JavaScript 코드는 이전과 동일합니다.
         const chessboardElement = document.getElementById('chessboard');
         const infoElement = document.getElementById('info');
-        const gameContainer = document.getElementById('game-container'); // 유령 말 추가 위치
+        const gameContainer = document.getElementById('game-container');
+        const modeSelectionElement = document.getElementById('mode-selection');
+        const vsAiButton = document.getElementById('vs-ai-button');
+        const vsHumanButton = document.getElementById('vs-human-button');
+
         const chess = new Chess();
 
         let selectedSquare = null;
         let validMoves = [];
-        let isAnimating = false; // 애니메이션 중 클릭 방지 플래그
+        let isAnimating = false;
+        let gameMode = null;
+        let playerColor = 'w';
+        let aiColor = 'b';
+        let aiDifficulty = 2;
 
         const pieceUnicode = {
             'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
             'b': { 'p': '♟︎', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
         };
 
-        // --- 초기 보드 및 말 생성 ---
+        // --- 게임 시작 함수 ---
+        function startGame(mode) {
+            gameMode = mode;
+            modeSelectionElement.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            createBoard();
+        }
+
+        // --- 모드 선택 버튼 이벤트 리스너 ---
+        vsAiButton.addEventListener('click', () => startGame('vsAI'));
+        vsHumanButton.addEventListener('click', () => startGame('vsHuman'));
+
+        // --- 보드 생성 ---
         function createBoard() {
             chessboardElement.innerHTML = '';
             for (let rank = 7; rank >= 0; rank--) {
@@ -147,14 +99,18 @@
             updateInfo();
         }
 
-        // --- 현재 게임 상태에 맞게 말 렌더링 ---
+        // --- 말 렌더링 ---
         function renderPieces() {
-            // 애니메이션 중이 아닐 때만 전체 렌더링
-            if (isAnimating) return;
+            console.log("renderPieces 호출됨. isAnimating:", isAnimating); // DEBUG LOG
+            // if (isAnimating) { // *** 문제의 원인으로 의심되는 부분 제거 ***
+            //     console.log("renderPieces: 애니메이션 중이므로 렌더링 건너뜀."); // DEBUG LOG
+            //     return;
+            // }
+            console.log("renderPieces: 현재 chess.js 보드 상태:\n" + chess.ascii()); // DEBUG LOG (현재 보드 상태 확인)
 
             document.querySelectorAll('.square').forEach(sq => {
                 sq.innerHTML = ''; // 기존 말, 마커 모두 제거
-                sq.classList.remove('moving'); // 혹시 남아있을 moving 클래스 제거
+                sq.classList.remove('moving'); // moving 클래스 제거
             });
             const board = chess.board();
             for (let rank = 0; rank < 8; rank++) {
@@ -170,63 +126,66 @@
                             pieceElement.dataset.piece = `${pieceData.color}${pieceData.type}`;
                             pieceElement.dataset.square = squareId;
                             squareElement.appendChild(pieceElement);
+                        } else {
+                             console.error(`renderPieces: 칸 요소 ${squareId} 를 찾을 수 없습니다.`); // DEBUG LOG
                         }
                     }
                 }
             }
+             console.log("renderPieces: 말 렌더링 완료."); // DEBUG LOG
         }
 
-        // --- 칸 클릭 처리 ---
+        // --- 클릭 처리 (모드별 분기) ---
         function handleSquareClick(event) {
-            // 애니메이션 중에는 클릭 무시
-            if (isAnimating) return;
+            if (isAnimating) {
+                 console.log("handleSquareClick: 애니메이션 중 클릭 무시됨."); // DEBUG LOG
+                 return;
+            }
+            if (gameMode === 'vsAI' && chess.turn() !== playerColor) {
+                 console.log("handleSquareClick: AI 턴이므로 클릭 무시됨."); // DEBUG LOG
+                 return;
+            }
 
             const clickedSquareId = event.currentTarget.id;
             const pieceInfo = chess.get(clickedSquareId);
+            const currentTurnColor = chess.turn();
 
             if (selectedSquare) {
                 const move = validMoves.find(m => m.to === clickedSquareId);
                 if (move) {
-                    // 유효한 이동 -> 애니메이션 시작
                     attemptMove(selectedSquare, clickedSquareId);
                 } else {
-                    // 유효하지 않은 이동이거나 다른 자신의 말을 클릭
-                    clearHighlights(); // 이전 선택/마커 제거
+                    clearHighlights();
                     selectedSquare = null;
-                     // 클릭된 칸이 자신의 말이면 새로 선택
-                    if (pieceInfo && pieceInfo.color === chess.turn()) {
+                    if (pieceInfo && pieceInfo.color === currentTurnColor) {
                          selectPiece(clickedSquareId);
                     }
                 }
             } else {
-                if (pieceInfo && pieceInfo.color === chess.turn()) {
-                    // 자신의 턴이고 자신의 말이면 선택
-                    clearHighlights(); // 이전 선택/마커 제거 (혹시 모를 경우)
+                if (pieceInfo && pieceInfo.color === currentTurnColor) {
+                    clearHighlights();
                     selectPiece(clickedSquareId);
                 } else {
-                     // 선택할 수 없는 칸 클릭 시 아무것도 안 함
-                     clearHighlights(); // 혹시 모를 하이라이트 제거
+                     clearHighlights();
                 }
             }
         }
 
-        // --- 말 선택 로직 ---
+        // --- 말 선택 ---
         function selectPiece(squareId) {
             selectedSquare = squareId;
             const squareElement = document.getElementById(squareId);
             if (!squareElement) return;
             squareElement.classList.add('selected');
-
             validMoves = chess.moves({ square: squareId, verbose: true });
             showValidMoves();
         }
 
-        // --- 유효 이동 경로 표시 ---
+        // --- 유효 이동 표시 ---
         function showValidMoves() {
             validMoves.forEach(move => {
                 const targetSquareElement = document.getElementById(move.to);
                 if (targetSquareElement) {
-                    // 마커가 이미 있는지 확인 (중복 방지)
                     if (!targetSquareElement.querySelector('.valid-move-marker')) {
                         const marker = document.createElement('div');
                         marker.classList.add('valid-move-marker');
@@ -236,76 +195,119 @@
             });
         }
 
-        // --- 모든 하이라이트 및 마커 제거 ---
+        // --- 하이라이트 제거 ---
         function clearHighlights() {
             document.querySelectorAll('.square.selected').forEach(el => el.classList.remove('selected'));
             document.querySelectorAll('.valid-move-marker').forEach(el => el.remove());
             validMoves = [];
         }
 
-        // --- 말 이동 시도 (애니메이션 호출) ---
+        // --- 이동 시도 (사용자 또는 사람 상대) ---
         function attemptMove(fromSquare, toSquare) {
             try {
-                // chess.js로 이동 유효성 검사 및 상태 업데이트 준비
                 const moveResult = chess.move({ from: fromSquare, to: toSquare, promotion: 'q' });
-
                 if (moveResult) {
-                    // 이동 성공 시 애니메이션 시작
-                    isAnimating = true; // 애니메이션 시작 플래그
-                    clearHighlights(); // 선택 및 마커 즉시 제거
-                    selectedSquare = null; // 선택 해제
-                    animateMove(fromSquare, toSquare, moveResult);
+                    isAnimating = true; // 애니메이션 시작 플래그 설정
+                    clearHighlights();
+                    selectedSquare = null;
+                    animateMove(fromSquare, toSquare, moveResult, () => {
+                        // 애니메이션 완료 후 처리 콜백
+                        console.log("attemptMove: 플레이어 이동 애니메이션 콜백 시작"); // DEBUG LOG
+                        updateInfo(); // 상태 업데이트
+                        // isAnimating = false; // 여기서 false로 설정하면 AI 턴 확인 전에 false가 될 수 있음. AI 호출 후 또는 else에서 설정
+
+                        if (gameMode === 'vsAI' && !chess.game_over() && chess.turn() === aiColor) {
+                            console.log("attemptMove: AI 턴 확인, triggerAIMove 호출"); // DEBUG LOG
+                            triggerAIMove(); // AI 이동 시작 (내부에서 isAnimating=true 유지 또는 다시 설정)
+                        } else {
+                             console.log("attemptMove: AI 턴 아님 또는 게임 종료됨, isAnimating=false 설정"); // DEBUG LOG
+                             isAnimating = false; // AI 턴 아니면 여기서 애니메이션 상태 종료
+                        }
+                    });
                 } else {
-                    // 유효하지 않은 이동 (chess.js가 null 반환)
-                    selectedSquare = null; // 선택 해제
-                    clearHighlights(); // 하이라이트 제거
+                    // 유효하지 않은 이동
+                    selectedSquare = null;
+                    clearHighlights();
                 }
             } catch (error) {
                 console.error("Error making move:", error);
                 selectedSquare = null;
                 clearHighlights();
+                isAnimating = false; // 오류 발생 시 애니메이션 상태 해제
             }
         }
 
-        // --- 말 이동 애니메이션 ---
-        function animateMove(fromSquare, toSquare, moveResult) {
+        // --- AI 이동 트리거 ---
+        function triggerAIMove() {
+            if (gameMode !== 'vsAI') return;
+            console.log("triggerAIMove: AI 이동 시작"); // DEBUG LOG
+
+            // isAnimating = true; // 이미 attemptMove 콜백 진입 시 true 상태일 수 있음. 여기서 다시 설정할 필요 없음.
+            updateInfo("AI 생각 중...");
+            setTimeout(() => {
+                 console.log("triggerAIMove: AI 계산 시작 (setTimeout 내부)"); // DEBUG LOG
+                const bestMove = getBestMove(chess, aiDifficulty);
+                if (bestMove) {
+                     console.log("triggerAIMove: AI 최적 수 계산 완료:", bestMove); // DEBUG LOG
+                    const moveResult = chess.move(bestMove);
+                    if (moveResult) {
+                         console.log("triggerAIMove: AI 수 적용 성공, 애니메이션 시작"); // DEBUG LOG
+                        // AI 이동 애니메이션 시작, 완료 후 isAnimating = false 처리
+                        animateMove(moveResult.from, moveResult.to, moveResult, () => {
+                            console.log("triggerAIMove: AI 이동 애니메이션 콜백 시작"); // DEBUG LOG
+                            isAnimating = false; // AI 애니메이션 완료 후 플래그 해제
+                            updateInfo();
+                             console.log("triggerAIMove: AI 이동 애니메이션 콜백 완료"); // DEBUG LOG
+                        });
+                    } else {
+                        console.error("AI generated an invalid move:", bestMove);
+                        isAnimating = false; // 오류 시 플래그 해제
+                        updateInfo();
+                    }
+                } else {
+                     console.log("triggerAIMove: AI가 둘 수 있는 수가 없음"); // DEBUG LOG
+                     isAnimating = false; // 게임 종료 시 플래그 해제
+                     updateInfo();
+                }
+            }, 50); // 50ms 딜레이 (생각 중 메시지 표시 위해)
+        }
+
+
+        // --- 이동 애니메이션 ---
+        function animateMove(fromSquare, toSquare, moveResult, callback) {
+            console.log(`animateMove: 애니메이션 시작 - ${fromSquare} -> ${toSquare}`); // DEBUG LOG
             const fromElement = document.getElementById(fromSquare);
             const toElement = document.getElementById(toSquare);
-            const pieceElement = fromElement.querySelector('.piece');
+            const pieceElement = fromElement?.querySelector('.piece');
 
             if (!fromElement || !toElement || !pieceElement) {
-                console.error("Animation error: Elements not found.");
-                isAnimating = false;
-                renderPieces();
+                console.error("Animation error: Elements not found.", fromSquare, toSquare);
+                // 애니메이션 실패 시 즉시 상태 반영 및 콜백 호출
+                renderPieces(); // 보드 즉시 렌더링
                 updateInfo();
+                isAnimating = false; // 애니메이션 플래그 리셋
+                if (callback) callback(); // 콜백 실행
                 return;
             }
 
-            // 1. 유령 말 생성 및 설정
             const ghostPiece = document.createElement('span');
             ghostPiece.textContent = pieceElement.textContent;
             ghostPiece.classList.add('ghost-piece');
-            ghostPiece.style.color = pieceElement.style.color; // 색상 복사 (필요 시)
+            ghostPiece.style.color = pieceElement.style.color;
 
-            // 2. 시작 위치 계산
             const boardRect = chessboardElement.getBoundingClientRect();
             const fromRect = fromElement.getBoundingClientRect();
             const startX = fromRect.left - boardRect.left + fromElement.offsetWidth / 2;
             const startY = fromRect.top - boardRect.top + fromElement.offsetHeight / 2;
 
-            // 유령 말의 너비/높이를 알아야 정확한 중앙 정렬 가능 (생성 후 계산)
-            // 임시로 추가했다가 위치 잡고 다시 transform 적용하는 방식 사용
             chessboardElement.appendChild(ghostPiece);
             const ghostWidth = ghostPiece.offsetWidth;
             const ghostHeight = ghostPiece.offsetHeight;
             ghostPiece.style.left = `${startX - ghostWidth / 2}px`;
             ghostPiece.style.top = `${startY - ghostHeight / 2}px`;
 
+            fromElement.classList.add('moving'); // 원래 말 숨기기
 
-            // 3. 원래 말 숨기기
-            fromElement.classList.add('moving');
-
-            // 4. 목표 위치 계산 및 이동
             const toRect = toElement.getBoundingClientRect();
             const endX = toRect.left - boardRect.left + toElement.offsetWidth / 2;
             const endY = toRect.top - boardRect.top + toElement.offsetHeight / 2;
@@ -317,20 +319,37 @@
                 ghostPiece.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
             });
 
-            // 5. 애니메이션 종료 처리
             ghostPiece.addEventListener('transitionend', () => {
+                console.log(`animateMove: Transition 종료 - ${fromSquare} -> ${toSquare}`); // DEBUG LOG
                 if (ghostPiece.parentNode) {
                     ghostPiece.parentNode.removeChild(ghostPiece);
                 }
-                isAnimating = false;
-                renderPieces();
-                updateInfo();
+                console.log("animateMove: renderPieces 호출 전"); // DEBUG LOG
+                renderPieces(); // 최종 보드 상태 그리기
+                console.log("animateMove: renderPieces 호출 후, 콜백 실행 전"); // DEBUG LOG
+                if (callback) {
+                    callback(); // 애니메이션 완료 후 콜백 실행
+                } else {
+                    // 콜백이 없는 비정상적인 경우 처리 (예방 차원)
+                    console.log("animateMove: 콜백 없음, 애니메이션 종료 처리"); // DEBUG LOG
+                    isAnimating = false;
+                    updateInfo();
+                }
+                console.log("animateMove: Transition 핸들러 종료"); // DEBUG LOG
+
             }, { once: true });
         }
 
 
         // --- 게임 정보 업데이트 ---
-        function updateInfo() {
+        function updateInfo(message = null) {
+            // if (isAnimating && message !== "AI 생각 중...") return; // 여전히 문제 소지 있음, 주석 처리
+
+            if (message) {
+                infoElement.textContent = message;
+                return;
+            }
+
             let status = '';
             const turn = chess.turn() === 'w' ? '백색' : '흑색';
 
@@ -350,8 +369,70 @@
             infoElement.textContent = status;
         }
 
-        // --- 초기화 실행 ---
-        createBoard();
+        // --- AI 로직 (이전과 동일) ---
+        const pieceValue = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
+        function evaluateBoard(board) { /* ... 이전과 동일 ... */ 
+            let totalEvaluation = 0;
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const piece = board[i][j];
+                    if (piece) {
+                        totalEvaluation += (piece.color === 'b' ? pieceValue[piece.type] : -pieceValue[piece.type]);
+                    }
+                }
+            }
+            return totalEvaluation;
+        }
+        function minimax(game, depth, alpha, beta, isMaximizingPlayer) { /* ... 이전과 동일 ... */ 
+            if (depth === 0 || game.game_over()) {
+                return evaluateBoard(game.board());
+            }
+            const possibleMoves = game.moves({ verbose: true });
+            let bestValue;
+            if (isMaximizingPlayer) {
+                bestValue = -Infinity;
+                for (let i = 0; i < possibleMoves.length; i++) {
+                    const move = possibleMoves[i];
+                    game.move(move.san);
+                    bestValue = Math.max(bestValue, minimax(game, depth - 1, alpha, beta, false));
+                    game.undo();
+                    alpha = Math.max(alpha, bestValue);
+                    if (beta <= alpha) break;
+                }
+                return bestValue;
+            } else {
+                bestValue = Infinity;
+                for (let i = 0; i < possibleMoves.length; i++) {
+                    const move = possibleMoves[i];
+                    game.move(move.san);
+                    bestValue = Math.min(bestValue, minimax(game, depth - 1, alpha, beta, true));
+                    game.undo();
+                    beta = Math.min(beta, bestValue);
+                    if (beta <= alpha) break;
+                }
+                return bestValue;
+            }
+        }
+        function getBestMove(game, depth) { /* ... 이전과 동일 ... */ 
+            let bestValue = -Infinity;
+            let bestMove = null;
+            const possibleMoves = game.moves({ verbose: true });
+            if (possibleMoves.length === 0) return null;
+
+            for (let i = 0; i < possibleMoves.length; i++) {
+                const move = possibleMoves[i];
+                game.move(move.san);
+                const boardValue = minimax(game, depth - 1, -Infinity, Infinity, false);
+                game.undo();
+                if (boardValue >= bestValue) {
+                    bestValue = boardValue;
+                    bestMove = move;
+                }
+            }
+            return bestMove ? { from: bestMove.from, to: bestMove.to, promotion: bestMove.promotion } : null;
+        }
+
+        // --- 초기화 실행 (페이지 로드 시 아무것도 안 함, 버튼 클릭 대기) ---
 
     </script>
 </body>
