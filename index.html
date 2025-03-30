@@ -1,0 +1,358 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>플레이 가능한 2D 체스 게임 (효과)</title>
+    <style>
+        /* 이전 CSS 스타일 유지 */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #d0d0d0;
+            font-family: sans-serif;
+            overflow: hidden; /* 애니메이션 중 스크롤 방지 */
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative; /* 유령 말 위치 기준 */
+        }
+        #info {
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            min-height: 1.5em;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 15px;
+            border-radius: 5px;
+        }
+        #chessboard {
+            width: 480px;
+            height: 480px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            border: 5px solid #333;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative; /* 칸 위치 기준 */
+        }
+        .square {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            position: relative;
+        }
+        .white-square { background-color: #eeeed2; }
+        .black-square { background-color: #769656; }
+        .piece {
+            cursor: pointer;
+            user-select: none;
+            z-index: 1;
+            transition: opacity 0.1s ease-out, transform 0.2s ease; /* transform transition 추가 */
+            /* 은은한 파란색 빛 효과 추가 */
+            text-shadow: 0 0 6px rgba(100, 150, 255, 0.7); /* X-offset, Y-offset, Blur-radius, Color */
+        }
+        .selected .piece {
+            color: #31708f; /* 선택 시 색상 변경은 유지하거나 제거 */
+            font-weight: bold;
+            transform: scale(1.1); /* 선택 시 크기 변경 */
+            /* 선택 시 그림자 강화 (옵션) */
+            /* text-shadow: 0 0 10px rgba(50, 100, 200, 0.9); */
+        }
+        .selected {
+             background-color: #bde0ff !important;
+        }
+        .valid-move-marker {
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            background-color: rgba(0, 255, 0, 0.4);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 애니메이션용 유령 말 스타일 */
+        .ghost-piece {
+            position: absolute;
+            font-size: 40px; /* .square와 동일하게 */
+            pointer-events: none; /* 클릭 방해 방지 */
+            z-index: 1000; /* 다른 요소들 위에 표시 */
+            transition: transform 0.3s ease-in-out;
+            /* 유령 말에도 동일한 그림자 효과 적용 */
+            text-shadow: 0 0 6px rgba(100, 150, 255, 0.7);
+        }
+        /* 애니메이션 시작 시 원래 말 숨기기용 클래스 */
+        .moving .piece {
+            opacity: 0;
+        }
+
+    </style>
+    
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="info">게임 로딩 중...</div>
+        <div id="chessboard">
+            </div>
+    </div>
+
+    <script>
+        // JavaScript 코드는 이전과 동일합니다.
+        const chessboardElement = document.getElementById('chessboard');
+        const infoElement = document.getElementById('info');
+        const gameContainer = document.getElementById('game-container'); // 유령 말 추가 위치
+        const chess = new Chess();
+
+        let selectedSquare = null;
+        let validMoves = [];
+        let isAnimating = false; // 애니메이션 중 클릭 방지 플래그
+
+        const pieceUnicode = {
+            'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
+            'b': { 'p': '♟︎', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
+        };
+
+        // --- 초기 보드 및 말 생성 ---
+        function createBoard() {
+            chessboardElement.innerHTML = '';
+            for (let rank = 7; rank >= 0; rank--) {
+                for (let file = 0; file < 8; file++) {
+                    const square = document.createElement('div');
+                    const squareId = String.fromCharCode('a'.charCodeAt(0) + file) + (rank + 1);
+                    square.id = squareId;
+                    square.classList.add('square');
+                    if ((rank + file) % 2 === 0) {
+                        square.classList.add('white-square');
+                    } else {
+                        square.classList.add('black-square');
+                    }
+                    square.addEventListener('click', handleSquareClick);
+                    chessboardElement.appendChild(square);
+                }
+            }
+            renderPieces();
+            updateInfo();
+        }
+
+        // --- 현재 게임 상태에 맞게 말 렌더링 ---
+        function renderPieces() {
+            // 애니메이션 중이 아닐 때만 전체 렌더링
+            if (isAnimating) return;
+
+            document.querySelectorAll('.square').forEach(sq => {
+                sq.innerHTML = ''; // 기존 말, 마커 모두 제거
+                sq.classList.remove('moving'); // 혹시 남아있을 moving 클래스 제거
+            });
+            const board = chess.board();
+            for (let rank = 0; rank < 8; rank++) {
+                for (let file = 0; file < 8; file++) {
+                    const pieceData = board[rank][file];
+                    if (pieceData) {
+                        const squareId = String.fromCharCode('a'.charCodeAt(0) + file) + (8 - rank);
+                        const squareElement = document.getElementById(squareId);
+                        if (squareElement) {
+                            const pieceElement = document.createElement('span');
+                            pieceElement.classList.add('piece');
+                            pieceElement.textContent = pieceUnicode[pieceData.color][pieceData.type];
+                            pieceElement.dataset.piece = `${pieceData.color}${pieceData.type}`;
+                            pieceElement.dataset.square = squareId;
+                            squareElement.appendChild(pieceElement);
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 칸 클릭 처리 ---
+        function handleSquareClick(event) {
+            // 애니메이션 중에는 클릭 무시
+            if (isAnimating) return;
+
+            const clickedSquareId = event.currentTarget.id;
+            const pieceInfo = chess.get(clickedSquareId);
+
+            if (selectedSquare) {
+                const move = validMoves.find(m => m.to === clickedSquareId);
+                if (move) {
+                    // 유효한 이동 -> 애니메이션 시작
+                    attemptMove(selectedSquare, clickedSquareId);
+                } else {
+                    // 유효하지 않은 이동이거나 다른 자신의 말을 클릭
+                    clearHighlights(); // 이전 선택/마커 제거
+                    selectedSquare = null;
+                     // 클릭된 칸이 자신의 말이면 새로 선택
+                    if (pieceInfo && pieceInfo.color === chess.turn()) {
+                         selectPiece(clickedSquareId);
+                    }
+                }
+            } else {
+                if (pieceInfo && pieceInfo.color === chess.turn()) {
+                    // 자신의 턴이고 자신의 말이면 선택
+                    clearHighlights(); // 이전 선택/마커 제거 (혹시 모를 경우)
+                    selectPiece(clickedSquareId);
+                } else {
+                     // 선택할 수 없는 칸 클릭 시 아무것도 안 함
+                     clearHighlights(); // 혹시 모를 하이라이트 제거
+                }
+            }
+        }
+
+        // --- 말 선택 로직 ---
+        function selectPiece(squareId) {
+            selectedSquare = squareId;
+            const squareElement = document.getElementById(squareId);
+            if (!squareElement) return;
+            squareElement.classList.add('selected');
+
+            validMoves = chess.moves({ square: squareId, verbose: true });
+            showValidMoves();
+        }
+
+        // --- 유효 이동 경로 표시 ---
+        function showValidMoves() {
+            validMoves.forEach(move => {
+                const targetSquareElement = document.getElementById(move.to);
+                if (targetSquareElement) {
+                    // 마커가 이미 있는지 확인 (중복 방지)
+                    if (!targetSquareElement.querySelector('.valid-move-marker')) {
+                        const marker = document.createElement('div');
+                        marker.classList.add('valid-move-marker');
+                        targetSquareElement.appendChild(marker);
+                    }
+                }
+            });
+        }
+
+        // --- 모든 하이라이트 및 마커 제거 ---
+        function clearHighlights() {
+            document.querySelectorAll('.square.selected').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('.valid-move-marker').forEach(el => el.remove());
+            validMoves = [];
+        }
+
+        // --- 말 이동 시도 (애니메이션 호출) ---
+        function attemptMove(fromSquare, toSquare) {
+            try {
+                // chess.js로 이동 유효성 검사 및 상태 업데이트 준비
+                const moveResult = chess.move({ from: fromSquare, to: toSquare, promotion: 'q' });
+
+                if (moveResult) {
+                    // 이동 성공 시 애니메이션 시작
+                    isAnimating = true; // 애니메이션 시작 플래그
+                    clearHighlights(); // 선택 및 마커 즉시 제거
+                    selectedSquare = null; // 선택 해제
+                    animateMove(fromSquare, toSquare, moveResult);
+                } else {
+                    // 유효하지 않은 이동 (chess.js가 null 반환)
+                    selectedSquare = null; // 선택 해제
+                    clearHighlights(); // 하이라이트 제거
+                }
+            } catch (error) {
+                console.error("Error making move:", error);
+                selectedSquare = null;
+                clearHighlights();
+            }
+        }
+
+        // --- 말 이동 애니메이션 ---
+        function animateMove(fromSquare, toSquare, moveResult) {
+            const fromElement = document.getElementById(fromSquare);
+            const toElement = document.getElementById(toSquare);
+            const pieceElement = fromElement.querySelector('.piece');
+
+            if (!fromElement || !toElement || !pieceElement) {
+                console.error("Animation error: Elements not found.");
+                isAnimating = false;
+                renderPieces();
+                updateInfo();
+                return;
+            }
+
+            // 1. 유령 말 생성 및 설정
+            const ghostPiece = document.createElement('span');
+            ghostPiece.textContent = pieceElement.textContent;
+            ghostPiece.classList.add('ghost-piece');
+            ghostPiece.style.color = pieceElement.style.color; // 색상 복사 (필요 시)
+
+            // 2. 시작 위치 계산
+            const boardRect = chessboardElement.getBoundingClientRect();
+            const fromRect = fromElement.getBoundingClientRect();
+            const startX = fromRect.left - boardRect.left + fromElement.offsetWidth / 2;
+            const startY = fromRect.top - boardRect.top + fromElement.offsetHeight / 2;
+
+            // 유령 말의 너비/높이를 알아야 정확한 중앙 정렬 가능 (생성 후 계산)
+            // 임시로 추가했다가 위치 잡고 다시 transform 적용하는 방식 사용
+            chessboardElement.appendChild(ghostPiece);
+            const ghostWidth = ghostPiece.offsetWidth;
+            const ghostHeight = ghostPiece.offsetHeight;
+            ghostPiece.style.left = `${startX - ghostWidth / 2}px`;
+            ghostPiece.style.top = `${startY - ghostHeight / 2}px`;
+
+
+            // 3. 원래 말 숨기기
+            fromElement.classList.add('moving');
+
+            // 4. 목표 위치 계산 및 이동
+            const toRect = toElement.getBoundingClientRect();
+            const endX = toRect.left - boardRect.left + toElement.offsetWidth / 2;
+            const endY = toRect.top - boardRect.top + toElement.offsetHeight / 2;
+
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+
+            requestAnimationFrame(() => {
+                ghostPiece.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            });
+
+            // 5. 애니메이션 종료 처리
+            ghostPiece.addEventListener('transitionend', () => {
+                if (ghostPiece.parentNode) {
+                    ghostPiece.parentNode.removeChild(ghostPiece);
+                }
+                isAnimating = false;
+                renderPieces();
+                updateInfo();
+            }, { once: true });
+        }
+
+
+        // --- 게임 정보 업데이트 ---
+        function updateInfo() {
+            let status = '';
+            const turn = chess.turn() === 'w' ? '백색' : '흑색';
+
+            if (chess.in_checkmate()) {
+                status = `체크메이트! ${turn === '백색' ? '흑색' : '백색'} 승리!`;
+            } else if (chess.in_draw()) {
+                status = '무승부!';
+                if (chess.in_stalemate()) status += ' (스테일메이트)';
+                if (chess.in_threefold_repetition()) status += ' (3회 동형 반복)';
+                if (chess.insufficient_material()) status += ' (기물 부족)';
+            } else {
+                status = `${turn} 차례`;
+                if (chess.in_check()) {
+                    status += ' (체크!)';
+                }
+            }
+            infoElement.textContent = status;
+        }
+
+        // --- 초기화 실행 ---
+        createBoard();
+
+    </script>
+</body>
+</html>
